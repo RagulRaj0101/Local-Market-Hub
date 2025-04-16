@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shopping Cart</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+
+        input[type="number"] {
+            width: 60px;
+        }
+
+        button {
+            padding: 6px 12px;
+            cursor: pointer;
+            border: none;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #c82333;
+        }
+
+        #message {
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        #placeOrderBtn {
+            background-color: #28a745;
+            padding: 10px 20px;
+            border: none;
+            color: white;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #placeOrderBtn:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Your Shopping Cart</h1>
+    <div id="message"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Price (₹)</th>
+                <th>Quantity</th>
+                <th>Total</th>
+                <th>Remove</th>
+            </tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+    </table>
+    <h3 id="grandTotal">Grand Total: ₹0.00</h3>
+    <button id="placeOrderBtn" disabled>Place Order</button>
+    <br /><br />
+    <a href="inventory.html">Back to Inventory</a>
+
+    <script>
+        const cartBody = document.getElementById('cartBody');
+        const grandTotalEl = document.getElementById('grandTotal');
+        const placeOrderBtn = document.getElementById('placeOrderBtn');
+
+        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+
+        function renderCart() {
+            cartBody.innerHTML = '';
+            if (cart.length === 0) {
+                cartBody.innerHTML = '<tr><td colspan="5">Your cart is empty.</td></tr>';
+                grandTotalEl.textContent = 'Grand Total: ₹0.00';
+                placeOrderBtn.disabled = true;
+                return;
+            }
+
+            placeOrderBtn.disabled = false;
+            let grandTotal = 0;
+
+            cart.forEach((item, index) => {
+                const total = item.price * item.quantity;
+                grandTotal += total;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+          <td>${item.product}</td>
+          <td>₹${item.price.toFixed(2)}</td>
+          <td><input type="number" min="1" value="${item.quantity}" data-index="${index}" /></td>
+          <td>₹${total.toFixed(2)}</td>
+          <td><button data-index="${index}">Remove</button></td>
+        `;
+                cartBody.appendChild(row);
+            });
+
+            grandTotalEl.textContent = `Grand Total: ₹${grandTotal.toFixed(2)}`;
+        }
+
+        cartBody.addEventListener('change', e => {
+            if (e.target.tagName === 'INPUT') {
+                const index = e.target.getAttribute('data-index');
+                const newQty = parseInt(e.target.value);
+                if (isNaN(newQty) || newQty < 1) {
+                    alert('Quantity must be at least 1');
+                    renderCart();
+                    return;
+                }
+                cart[index].quantity = newQty;
+                localStorage.setItem('cart', JSON.stringify(cart));
+                renderCart();
+            }
+        });
+
+        cartBody.addEventListener('click', e => {
+            if (e.target.tagName === 'BUTTON') {
+                const index = e.target.getAttribute('data-index');
+                cart.splice(index, 1);
+                localStorage.setItem('cart', JSON.stringify(cart));
+                renderCart();
+            }
+        });
+
+        placeOrderBtn.addEventListener('click', async () => {
+            if (cart.length === 0) {
+                alert('Your cart is empty.');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/customer/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cart),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to place order.');
+                }
+
+                const data = await response.json();
+                alert(`Order placed successfully! Grand total: ₹${data.grand_total.toFixed(2)}`);
+
+                localStorage.removeItem('cart');
+                cart = [];
+                renderCart();
+
+            } catch (error) {
+                alert(`Error placing order: ${error.message}`);
+            }
+        });
+
+        renderCart();
+    </script>
+</body>
+
+</html>
